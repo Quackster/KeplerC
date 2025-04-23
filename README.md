@@ -2,6 +2,8 @@
 
 A small TCP server written in C11 powered by libuv, an asynchronous networking library. It powers the Habbo Hotel version 18 client from 2007 era. The aim is to fully replicate this version by writing the back-end server in the C11 language.
 
+This was the original Kepler emulator before [it was recoded](http://github.com/Quackster/Kepler) in Java. 
+
 ## Requirements
 
 This server is only supported on Linux/POSIX systems. For Windows users, to use Kepler you must use the [Windows Subsystem for Linux](https://docs.microsoft.com/en-us/windows/wsl/install-win10) in order to run and compile the app in a Linux environment.
@@ -55,13 +57,13 @@ $ sudo apt install libsodium-dev
 ## Cloning this repository
 
 ```
-$ git clone --recursive https://github.com/Quackster/Kepler
+$ git clone --recursive https://github.com/Quackster/KeplerC
 ```
 
 **or**
 
 ```
-$ git clone https://github.com/Quackster/Kepler
+$ git clone https://github.com/Quackster/KeplerC
 $ git submodule update --init --recursive
 ```
 
