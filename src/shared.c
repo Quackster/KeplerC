@@ -8,6 +8,7 @@
 #include <ctype.h>
 #include <time.h>
 
+server global;
 
 /**
  * Get the current time formatted, must be free'd at the end.
@@ -17,7 +18,9 @@
 char *get_time_formatted() {
     char buff[20];
     time_t now = time(NULL);
-    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&now));
+    struct tm time_info;
+    localtime_r(&now, &time_info);
+    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", &time_info);
     return strdup(buff);
 }
 
@@ -29,7 +32,9 @@ char *get_time_formatted() {
 char *get_short_time_formatted() {
     char buff[20];
     time_t now = time(NULL);
-    strftime(buff, 20, "%m-%d-%Y", localtime(&now));
+    struct tm time_info;
+    localtime_r(&now, &time_info);
+    strftime(buff, 20, "%m-%d-%Y", &time_info);
     return strdup(buff);
 }
 
@@ -42,7 +47,9 @@ char *get_short_time_formatted() {
 char *get_time_formatted_custom(unsigned long time_seconds) {
     char buff[20];
     time_t now = (time_t) time_seconds;
-    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", localtime(&now));
+    struct tm time_info;
+    localtime_r(&now, &time_info);
+    strftime(buff, 20, "%Y-%m-%d %H:%M:%S", &time_info);
     return strdup(buff);
 }
 
@@ -92,7 +99,9 @@ char *get_argument(char *str, char *delim, int index) {
 
     int i = 0;
 
-    for (char *token = strtok(copy, delim); token; token = strtok(NULL, delim)) {
+    char *saveptr = NULL;
+
+    for (char *token = strtok_r(copy, delim, &saveptr); token; token = strtok_r(NULL, delim, &saveptr)) {
         if (i++ == index) {
             value = strdup(token);
             break;

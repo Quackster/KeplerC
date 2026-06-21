@@ -1,15 +1,20 @@
 #ifndef PLAYER_MANAGER_H
 #define PLAYER_MANAGER_H
 
+#include "uv.h"
+
 typedef struct list_s List;
 typedef struct entity_s entity;
 typedef struct entity_details_s entity_data;
 
 struct player_manager {
     List *players;
+    uv_mutex_t mutex;
 };
 
 void player_manager_init();
+void player_manager_lock();
+void player_manager_unlock();
 entity *player_manager_add(void*, char *ip);
 void player_manager_remove(entity*);
 entity *player_manager_find_by_name(char *name);

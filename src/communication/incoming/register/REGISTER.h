@@ -18,9 +18,8 @@ typedef struct register_context_s {
 /*
  * This function does the off-server-thread login
  */
-void *do_register(void *args) {
+void do_register(void *args) {
     register_context *ctx = (register_context *)args;
-    entity *player = ctx->player;
 
     player_query_create(ctx->username, ctx->figure, ctx->gender, ctx->password);
 
@@ -35,13 +34,20 @@ void *do_register(void *args) {
  */
 void async_register(char *username, char *figure, char* gender, char *password, entity *player) {
     register_context *ctx = malloc(sizeof(register_context));
+
+    if (ctx == NULL) {
+        return;
+    }
+
     strcpy(ctx->username, username);
     strcpy(ctx->password, password);
     strcpy(ctx->figure, figure);
     strcpy(ctx->gender, gender);
     ctx->player = player;
 
-    hh_dispatch(StorageDispatch, (hh_dispatch_cb_t) &do_register, (void *)ctx);
+    if (hh_dispatch(StorageDispatch, do_register, (void *)ctx) != 0) {
+        free(ctx);
+    }
 }
 
 void REGISTER(entity *player, incoming_message *message) {

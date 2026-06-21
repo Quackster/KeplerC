@@ -44,7 +44,8 @@ catalogue_page *catalogue_page_create(int id, int min_role, char *name_index, ch
     list_new(&page->items);
 
     if (label_extra_t != NULL) {
-        char *new_line = strtok(label_extra_t,"\r\n");
+        char *saveptr = NULL;
+        char *new_line = strtok_r(label_extra_t,"\r\n", &saveptr);
 
         while(new_line != NULL) {
             // Get ID
@@ -63,7 +64,7 @@ catalogue_page *catalogue_page_create(int id, int min_role, char *name_index, ch
             sprintf(key, "label_extra_t_%s", z_id);
 
             hashtable_add(page->label_extra, strdup(key), strdup(z_data));
-            new_line = strtok(NULL,"\r\n");
+            new_line = strtok_r(NULL,"\r\n", &saveptr);
         }
     }
 

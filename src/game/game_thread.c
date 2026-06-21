@@ -1,11 +1,17 @@
 #include <unistd.h>
 #include <time.h>
+#include <stdlib.h>
 
 #include "list.h"
+#include "hashtable.h"
 #include "log.h"
 
 #include "game/player/player.h"
 #include "game/room/room_user.h"
+#include "game/room/room.h"
+#include "game/room/tasks/roller_task.h"
+#include "game/room/tasks/status_task.h"
+#include "game/room/tasks/walk_task.h"
 #include "game/room/manager/room_entity_manager.h"
 
 #include "server/server_listener.h"
@@ -26,11 +32,31 @@ void game_thread_loop(void *arguments) {
 
     while (!global.is_shutdown) {
         tick++;
-        game_thread_task(tick);
-        sleep(1);
+        unsigned long *tick_data = malloc(sizeof(unsigned long));
+
+        if (tick_data != NULL) {
+            *tick_data = tick;
+
+            if (server_dispatch(&game_thread_task_dispatch, tick_data) != 0) {
+                free(tick_data);
+            }
+        }
+
+        usleep(500000);
     }
 
     printf("Game thread closed..\n");
+}
+
+void game_thread_task_dispatch(void *data) {
+    if (data == NULL) {
+        return;
+    }
+
+    unsigned long ticks = *((unsigned long *) data);
+    free(data);
+
+    game_thread_task(ticks);
 }
 
 void game_thread_task(unsigned long ticks) {
@@ -43,7 +69,7 @@ void game_thread_task(unsigned long ticks) {
         }
 
         // Check ping timeout
-        if (ticks % 60 == 0) {
+        if (ticks % 120 == 0) {
             if (player->ping_safe) {
                 player->ping_safe = false;
 
@@ -67,6 +93,30 @@ void game_thread_task(unsigned long ticks) {
         if (player->logged_in) {
             if (player->room_user->room != NULL && time(NULL) > player->room_user->room_idle_timer) {
                 room_leave(player->room_user->room, player, true); // Kick and send to hotel view
+            }
+        }
+    }
+
+    if (hashtable_size(global.room_manager.rooms) > 0) {
+        HashTableIter iter;
+        hashtable_iter_init(&iter, global.room_manager.rooms);
+
+        TableEntry *entry;
+        while (hashtable_iter_next(&iter, &entry) != CC_ITER_END) {
+            room *room = entry->value;
+
+            if (room == NULL || room->room_map == NULL || list_size(room->users) == 0) {
+                continue;
+            }
+
+            walk_task(room);
+
+            if (ticks % 2 == 0) {
+                status_task(room);
+            }
+
+            if (ticks % 6 == 0) {
+                roller_task(room);
             }
         }
     }

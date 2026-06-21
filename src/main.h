@@ -7,6 +7,7 @@
 
 int main(void);
 void exit_program();
+void exit_signal_handler(int signal);
 void dispose_program();
 
 #endif

@@ -5,6 +5,7 @@
  * @Author Leon Hartley
  */
 
+#include <stdbool.h>
 #include <uv.h>
 
 /*
@@ -28,11 +29,19 @@ typedef void (*hh_dispatch_cb_t) (void *data);
 typedef struct hh_dispatch_work_s {
     void *data;
     hh_dispatch_cb_t cb;
+    struct hh_dispatch_work_s *next;
 } hh_dispatch_work_t;
 
 typedef struct hh_dispatch_loop_t {
     uv_thread_t *thread;
     uv_loop_t *loop;
+    uv_async_t async;
+    uv_mutex_t mutex;
+    uv_sem_t ready;
+    hh_dispatch_work_t *work_head;
+    hh_dispatch_work_t *work_tail;
+    uv_thread_t thread_id;
+    bool closing;
     int id;
 } hh_dispatch_loop_t;
 
@@ -47,6 +56,7 @@ typedef struct hh_dispatch_loop_group_s {
 typedef struct hh_dispatch_timer_s {
     hh_dispatch_work_t *work;
     uv_timer_t *handle;
+    hh_dispatch_loop_t *loop;
 } hh_dispatch_timer_t;
 
 void hh_dispatch_initialise(int game_dispatch_count, int room_dispatch_count,

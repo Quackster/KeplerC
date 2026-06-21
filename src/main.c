@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <sodium.h>
 #include <signal.h>
+#include <unistd.h>
 #include "dispatch.h"
 
 #include "main.h"
@@ -23,10 +24,16 @@
 #include <windows.h>
 #endif
 
+static uv_thread_t mus_thread;
+static uv_thread_t server_thread;
+static uv_thread_t game_thread;
+static bool runtime_threads_started = false;
+static bool disposed = false;
+static volatile sig_atomic_t shutdown_requested = 0;
+
 int main(void) {
-    signal(SIGINT,  &exit_program); // Handle cleanup on Ctrl-C
-    signal(SIGTERM,  &exit_program); // Handle graceful shutdown (sent by Docker)
-    signal(SIGKILL,  &exit_program); // Handle forceful shutdown (sent by Docker)
+    signal(SIGINT,  &exit_signal_handler); // Handle cleanup on Ctrl-C
+    signal(SIGTERM,  &exit_signal_handler); // Handle graceful shutdown (sent by Docker)
 
 #ifdef WIN32
     SetConsoleTitle("Kepler - Habbo Hotel V21 Emulation");
@@ -77,8 +84,6 @@ int main(void) {
     hh_dispatch_initialise(1, 8, 1);
 
     server_settings rcon_settings, server_settings;
-    uv_thread_t mus_thread, server_thread, game_thread;
-
     strcpy(rcon_settings.ip, configuration_get_string("rcon.ip.address"));
     rcon_settings.port = configuration_get_int("rcon.port");
 
@@ -88,10 +93,15 @@ int main(void) {
     game_thread_init(&game_thread);
     start_rcon(&rcon_settings, &mus_thread);
     start_server(&server_settings, &server_thread);
+    runtime_threads_started = true;
 
-    uv_thread_join(&mus_thread);
-    uv_thread_join(&server_thread);
-    uv_thread_join(&game_thread);
+    while (!global.is_shutdown && !shutdown_requested) {
+        sleep(1);
+    }
+
+    global.is_shutdown = true;
+
+    dispose_program();
 
     return EXIT_SUCCESS;
 }
@@ -99,17 +109,36 @@ int main(void) {
 /**
  * Exits program, calls dispose_program
  */
+void exit_signal_handler(int signal) {
+    (void) signal;
+    shutdown_requested = 1;
+}
+
 void exit_program() {
-    dispose_program();
-    exit(EXIT_SUCCESS);
+    global.is_shutdown = true;
 }
 
 /**
  * Destroys program, clears all memory, except server listen instances.
  */
 void dispose_program() {
+    if (disposed) {
+        return;
+    }
+
+    disposed = true;
+
     log_info("Shutting down server!");
     global.is_shutdown = true;
+
+    if (runtime_threads_started) {
+        rcon_shutdown(&mus_thread);
+        server_shutdown(&server_thread);
+        uv_thread_join(&game_thread);
+        runtime_threads_started = false;
+    }
+
+    hh_dispatch_shutdown();
 
     player_manager_dispose();
     catalogue_manager_dispose();

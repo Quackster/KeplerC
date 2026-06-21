@@ -19,6 +19,8 @@
 #include "game/player/player.h"
 #include "game/items/item.h"
 
+#include "server/server_listener.h"
+
 #include "database/queries/player_query.h"
 #include "database/queries/rooms/room_rights_query.h"
 
@@ -335,30 +337,34 @@ void room_send(room *room, outgoing_message *message) {
 void room_async_send(room *room, outgoing_message *message) {
     om_finalise(message);
 
+    if (server_is_server_thread()) {
+        room_send(room, message);
+        om_cleanup(message);
+        return;
+    }
+
     async_send_cb *send_async = malloc(sizeof(async_send_cb));
     send_async->data = room;
     send_async->om = message;
 
-    uv_async_t *async = malloc(sizeof(uv_async_t));
-    async->data = send_async;
-
-    uv_async_init(uv_default_loop(), async, &room_async_send_cb);
-    uv_async_send(async);
+    if (server_dispatch(&room_async_send_cb, send_async) != 0) {
+        om_cleanup(message);
+        free(send_async);
+    }
 }
 
 
-void room_async_send_cb(uv_async_t *handle) {
-    if (handle->data == NULL) {
+void room_async_send_cb(void *data) {
+    if (data == NULL) {
         return;
     }
 
-    async_send_cb *send_async = handle->data;
+    async_send_cb *send_async = data;
     room_send(send_async->data, send_async->om);
 
     om_cleanup(send_async->om);
 
     free(send_async);
-    free(handle);
 }
 
 

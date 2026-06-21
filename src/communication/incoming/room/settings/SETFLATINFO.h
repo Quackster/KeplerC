@@ -26,8 +26,9 @@ void SETFLATINFO(entity *player, incoming_message *message) {
 
     char *copy = strdup(content);
     char *token;
+    char *saveptr = NULL;
 
-    for (token = strtok(copy, "\r"); token; token = strtok(NULL, "\r")) {
+    for (token = strtok_r(copy, "\r", &saveptr); token; token = strtok_r(NULL, "\r", &saveptr)) {
         split_count++;
     }
 

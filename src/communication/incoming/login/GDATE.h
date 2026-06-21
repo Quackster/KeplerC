@@ -6,7 +6,8 @@
 
 void GDATE(entity *player, incoming_message *message) {
     time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
+    struct tm tm;
+    localtime_r(&t, &tm);
 
     char date[11];
     sprintf(date, "%02d-%02d-%d", tm.tm_mday, tm.tm_mon + 1, tm.tm_year + 1900);

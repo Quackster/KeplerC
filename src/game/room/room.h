@@ -70,7 +70,7 @@ bool room_is_owner(room *room, int user_id);
 bool room_has_rights(room *room, int user_id);
 void room_refresh_rights(room *room, entity *player);
 void room_send(room *room, outgoing_message *message);
-void room_async_send_cb(uv_async_t *handle);
+void room_async_send_cb(void *data);
 void room_async_send(room *room, outgoing_message *message);
 bool room_send_with_rights(room *room, outgoing_message *message);
 void room_dispose(room*, bool force_dispose);

@@ -5,6 +5,8 @@
 
 #include "game/player/player.h"
 
+mh_request message_requests[MESSAGES];
+
 // Login
 #include "communication/incoming/login/INIT_CRYPTO.h"
 #include "communication/incoming/login/GENERATEKEY.h"

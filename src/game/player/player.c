@@ -43,7 +43,20 @@ entity *player_create(void *socket, char *ip_address) {
     player->messenger = NULL;
     player->inventory = NULL;
     player->last_stalk = time(0);
+    atomic_init(&player->ref_count, 1);
     return player;
+}
+
+void player_retain(entity *player) {
+    if (player != NULL) {
+        atomic_fetch_add(&player->ref_count, 1);
+    }
+}
+
+void player_release(entity *player) {
+    if (player != NULL && atomic_fetch_sub(&player->ref_count, 1) == 1) {
+        free(player);
+    }
 }
 
 /**
@@ -134,23 +147,26 @@ void player_disconnect(entity *player, bool async_disconnect) {
     }
 
     if (async_disconnect) {
-        uv_async_t *async = malloc(sizeof(uv_async_t));
-        async->data = player;
-
-        uv_async_init(uv_default_loop(), async, &player_disconnect_async_cb);
-        uv_async_send(async);
-    } else {
+        if (server_is_server_thread()) {
+            player_disconnect_async_cb(player);
+        } else {
+            server_dispatch(&player_disconnect_async_cb, player);
+        }
+    } else if (!uv_is_closing((uv_handle_t *) player->stream)) {
         uv_close((uv_handle_t *) player->stream, server_on_connection_close);
     }
 }
 
-void player_disconnect_async_cb(uv_async_t *handle) {
-    if (handle->data == NULL) {
+void player_disconnect_async_cb(void *data) {
+    if (data == NULL) {
         return;
     }
 
-    entity *player = handle->data;
-    uv_close((uv_handle_t *) player->stream, server_on_connection_close);
+    entity *player = data;
+
+    if (!player->disconnected && !uv_is_closing((uv_handle_t *) player->stream)) {
+        uv_close((uv_handle_t *) player->stream, server_on_connection_close);
+    }
 }
 
 /**
@@ -160,7 +176,7 @@ void player_disconnect_async_cb(uv_async_t *handle) {
  * @param om the outgoing message
  */
 void player_send(entity *p, outgoing_message *om) {
-    if (om == NULL || p == NULL || p->disconnected) {
+    if (om == NULL || p == NULL || p->disconnected || uv_is_closing((uv_handle_t *) p->stream)) {
         return;
     }
 
@@ -187,6 +203,11 @@ void player_send(entity *p, outgoing_message *om) {
     req->data = buffer.base;
 
     int response = uv_write(req, (uv_stream_t *) p->stream, &buffer, 1, &server_on_write);
+
+    if (response != 0) {
+        free(buffer.base);
+        free(req);
+    }
 }
 
 /**
@@ -199,30 +220,34 @@ void player_send(entity *p, outgoing_message *om) {
 void player_async_send(entity *entity, outgoing_message *message) {
     om_finalise(message);
 
+    if (server_is_server_thread()) {
+        player_send(entity, message);
+        om_cleanup(message);
+        return;
+    }
+
     async_send_cb *send_async = malloc(sizeof(async_send_cb));
     send_async->data = entity;
     send_async->om = message;
 
-    uv_async_t *async = malloc(sizeof(uv_async_t));
-    async->data = send_async;
-
-    uv_async_init(uv_default_loop(), async, &player_async_send_cb);
-    uv_async_send(async);
+    if (server_dispatch(&player_async_send_cb, send_async) != 0) {
+        om_cleanup(message);
+        free(send_async);
+    }
 }
 
 
-void player_async_send_cb(uv_async_t *handle) {
-    if (handle->data == NULL) {
+void player_async_send_cb(void *data) {
+    if (data == NULL) {
         return;
     }
 
-    async_send_cb *send_async = handle->data;
+    async_send_cb *send_async = data;
     player_send(send_async->data, send_async->om);
 
     om_cleanup(send_async->om);
 
     free(send_async);
-    free(handle);
 }
 
 /**
@@ -281,7 +306,7 @@ void player_cleanup(entity *player) {
 
     free(player->ip_address);
     free(player->stream);
-    free(player);
+    player_release(player);
 }
 
 void player_data_cleanup(entity_data *player_data) {

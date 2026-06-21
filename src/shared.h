@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 #include "sqlite3.h"
 
 #include "game/items/item_manager.h"
@@ -38,11 +39,12 @@ typedef struct server_s {
     struct walkway_manager walkway_manager;
     struct fuserights_manager fuserights_manager;
     struct sqlite3 *DB;
+    uv_loop_t *server_loop;
     uv_loop_t *rcon_loop;
-    bool is_shutdown;
+    atomic_bool is_shutdown;
 } server;
 
-server global;
+extern server global;
 
 char *get_time_formatted();
 char *get_short_time_formatted();

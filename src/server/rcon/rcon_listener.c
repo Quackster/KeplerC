@@ -13,6 +13,25 @@
 
 #include "server/server_listener.h"
 
+static uv_async_t rcon_shutdown_async;
+static uv_sem_t rcon_ready;
+
+static void rcon_close_handle_cb(uv_handle_t *handle) {
+    (void) handle;
+}
+
+static void rcon_close_walk_cb(uv_handle_t *handle, void *arg) {
+    (void) arg;
+
+    if (!uv_is_closing(handle)) {
+        uv_close(handle, &rcon_close_handle_cb);
+    }
+}
+
+static void rcon_shutdown_async_cb(uv_async_t *handle) {
+    uv_walk(handle->loop, &rcon_close_walk_cb, NULL);
+}
+
 
 /**
  * Allocate buffer for reading data.
@@ -137,6 +156,9 @@ void listen_rcon(void *arguments)  {
     uv_tcp_t server;
     struct sockaddr_in bind_addr;
 
+    uv_async_init(loop, &rcon_shutdown_async, &rcon_shutdown_async_cb);
+    uv_sem_post(&rcon_ready);
+
     uv_tcp_init(loop, &server);
     uv_ip4_addr(args->ip, args->port, &bind_addr);
     uv_tcp_bind(&server, (const struct sockaddr*) &bind_addr, 0);
@@ -155,9 +177,21 @@ void listen_rcon(void *arguments)  {
 void start_rcon(server_settings *settings, uv_thread_t *rcon_thread) {
     log_info("Starting RCON on port %i...", settings->port);
 
+    uv_sem_init(&rcon_ready, 0);
+
     if (uv_thread_create(rcon_thread, listen_rcon, (void*) settings) != 0) {
         log_fatal("Uh-oh! Unable to spawn RCON thread");
     } else {
+        uv_sem_wait(&rcon_ready);
         log_info("RCON successfully started!", settings->port);
     }
+}
+
+void rcon_shutdown(uv_thread_t *rcon_thread) {
+    if (global.rcon_loop == NULL) {
+        return;
+    }
+
+    uv_async_send(&rcon_shutdown_async);
+    uv_thread_join(rcon_thread);
 }

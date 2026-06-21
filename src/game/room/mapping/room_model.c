@@ -54,11 +54,12 @@ void room_model_parse(room_model *room_model) {
     char *array[100];
 
     int lines = 0;
+    char *saveptr = NULL;
 
-    array[lines] = strtok(heightmap,"\r");
+    array[lines] = strtok_r(heightmap,"\r", &saveptr);
 
     while(array[lines] != NULL) {
-        array[++lines] = strtok(NULL,"\r");
+        array[++lines] = strtok_r(NULL,"\r", &saveptr);
     }
 
     int map_size_x = (int)strlen(array[0]);

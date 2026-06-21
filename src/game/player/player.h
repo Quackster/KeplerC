@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <time.h>
+#include <stdatomic.h>
 
 #include "uv.h"
 
@@ -46,17 +47,20 @@ typedef struct entity_s {
     bool disconnected;
     bool ping_safe;
     time_t last_stalk;
+    atomic_int ref_count;
 } entity;
 
 entity *player_create(void*, char*);
+void player_retain(entity *player);
+void player_release(entity *player);
 entity_data *player_create_data(int, char*, char*, char*, char*, int, char*, char*, int, int, int, char*, unsigned long, unsigned long, unsigned long, char*, bool);
 void player_login(entity *player);
 bool player_has_fuse(entity *player, char *fuse_right);
 void player_disconnect(entity *player, bool async_disconnect);
-void player_disconnect_async_cb(uv_async_t *handle);
+void player_disconnect_async_cb(void *data);
 void player_send(entity *entity, outgoing_message *message);
 void player_async_send(entity *entity, outgoing_message *message);
-void player_async_send_cb(uv_async_t *handle);
+void player_async_send_cb(void *data);
 void player_cleanup(entity*);
 void player_data_cleanup(entity_data*);
 
