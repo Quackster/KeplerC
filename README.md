@@ -18,8 +18,6 @@ One of these, the choice is yours:
 - Ubuntu 18.04+
 - Fedora 28+ Workstation
 
-The commands shown below apply to Ubuntu 18.04+. If you're using Fedora or Arch Linux, you should replace `apt` with `dnf` for Fedora or `pacman` for Arch Linux.
-
 Other distributions have not been tested.
 
 #### Note on using Ubuntu in WSL
@@ -44,14 +42,39 @@ $ sudo -S env RELEASE_UPGRADER_NO_SCREEN=1 do-release-upgrade -d
 
 ## Downloading dependencies
 
-First, run these commands to ensure you have everything required to compile Kepler.
+First, install everything required to compile Kepler.
+
+Ubuntu/Debian:
 
 ```
 $ sudo apt install make cmake
+$ sudo apt install gcc
 $ sudo apt install git
 $ sudo apt install libuv1-dev
 $ sudo apt install sqlite3 libsqlite3-dev
 $ sudo apt install libsodium-dev
+```
+
+Fedora:
+
+```
+$ sudo dnf install make cmake
+$ sudo dnf install gcc
+$ sudo dnf install git
+$ sudo dnf install libuv-devel
+$ sudo dnf install sqlite sqlite-devel
+$ sudo dnf install libsodium-devel
+```
+
+Arch Linux:
+
+```
+$ sudo pacman -S make cmake
+$ sudo pacman -S gcc
+$ sudo pacman -S git
+$ sudo pacman -S libuv
+$ sudo pacman -S sqlite
+$ sudo pacman -S libsodium
 ```
 
 ## Cloning this repository
@@ -72,9 +95,9 @@ $ git submodule update --init --recursive
 These commands will compile and run Kepler, first make sure you're in the directory of Kepler.
 
 ```
-$ cmake .
-$ make
-$ ./Kepler
+$ cmake -S . -B build
+$ cmake --build build
+$ ./build/Kepler
 ```
 
-The CMake command is only necessary if you make changes to CMakeLists.txt, because it will rebuild the cache.
+Run the CMake configure command again after changing `CMakeLists.txt` or installing new development packages.

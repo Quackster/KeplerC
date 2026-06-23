@@ -101,9 +101,14 @@ add_executable(${EXECUTABLE_NAME}
         ${catalogue}
         ${texts})
 
-find_package (Libuv)
-find_package (Libsodium)
+find_package(Libuv REQUIRED)
+find_package(Libsodium REQUIRED)
 
-target_link_libraries(${EXECUTABLE_NAME} uv)
-target_link_libraries(${EXECUTABLE_NAME} sodium)
-target_link_libraries(${EXECUTABLE_NAME} sqlite3)
+target_include_directories(${EXECUTABLE_NAME} PRIVATE
+        ${LIBUV_INCLUDE_DIRS}
+        ${LIBSODIUM_INCLUDE_DIRS})
+
+target_link_libraries(${EXECUTABLE_NAME}
+        ${LIBUV_LIBRARIES}
+        ${LIBSODIUM_LIBRARIES}
+        sqlite3)
