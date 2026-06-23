@@ -26,7 +26,6 @@ bool db_initialise() {
 
     if (con == NULL) {
         log_info("The database connection was unsuccessful, program aborted!");
-        sqlite3_close(con);
         return false;
     }
 
@@ -81,16 +80,29 @@ sqlite3 *db_create_connection() {
         sqlite3_close(db);
         return NULL;
     } else {
+        if (!run_query) {
+            run_query = db_schema_needs_bootstrap(db);
+        }
+
         if (run_query) {
             log_info("Executing queries...");
 
             char *buffer = db_load_sql_file();
+
+            if (buffer == NULL) {
+                log_fatal("Could not load kepler.sql");
+                sqlite3_close(db);
+                return NULL;
+            }
+
             rc = sqlite3_exec(db, buffer, 0, 0, &err_msg);
 
             if (rc != SQLITE_OK ) {
                 log_fatal("SQL error: %s", err_msg);
                 sqlite3_free(err_msg);
                 sqlite3_close(db);
+                free(buffer);
+                return NULL;
             }
 
             free(buffer);
@@ -116,10 +128,22 @@ sqlite3 *db_create_connection() {
  * @return the file contents
  */
 char* db_load_sql_file() {
-    char path[] = "kepler.sql";
+    const char *paths[] = {
+            "kepler.sql",
+            "../kepler.sql",
+            NULL
+    };
     char* buffer = NULL;
     size_t length;
-    FILE * f = fopen (path, "rb"); //was "rb"
+    FILE * f = NULL;
+
+    for (int i = 0; paths[i] != NULL; i++) {
+        f = fopen(paths[i], "rb");
+
+        if (f != NULL) {
+            break;
+        }
+    }
 
     if (f) {
         fseek (f, 0, SEEK_END);
@@ -141,6 +165,20 @@ char* db_load_sql_file() {
     }
 
     return buffer;
+}
+
+bool db_schema_needs_bootstrap(sqlite3 *db) {
+    sqlite3_stmt *stmt = NULL;
+    int status = sqlite3_prepare_v2(db, "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'rank_fuserights'", -1, &stmt, 0);
+
+    if (status != SQLITE_OK) {
+        return true;
+    }
+
+    status = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return status != SQLITE_ROW;
 }
 
 /**
@@ -173,6 +211,9 @@ int db_check_prepare(int status, sqlite3 *conn) {
 
         // Cleanup
         sqlite3_close(conn);
+        if (global.DB == conn) {
+            global.DB = NULL;
+        }
         dispose_program();
 
         // We exit on error to keep ACID consistency
@@ -193,6 +234,9 @@ int db_check_finalize(int status, sqlite3 *conn) {
 
         // Cleanup
         sqlite3_close(conn);
+        if (global.DB == conn) {
+            global.DB = NULL;
+        }
         dispose_program();
 
         // We exit on error to keep ACID consistency
@@ -215,6 +259,9 @@ int db_check_step(int status, sqlite3 *conn, sqlite3_stmt *stmt) {
         // Cleanup
         sqlite3_finalize(stmt);
         sqlite3_close(conn);
+        if (global.DB == conn) {
+            global.DB = NULL;
+        }
         dispose_program();
 
         // We exit on error to keep ACID consistency

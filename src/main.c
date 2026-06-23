@@ -28,6 +28,14 @@ static uv_thread_t mus_thread;
 static uv_thread_t server_thread;
 static uv_thread_t game_thread;
 static bool runtime_threads_started = false;
+static bool dispatch_started = false;
+static bool player_manager_started = false;
+static bool catalogue_manager_started = false;
+static bool category_manager_started = false;
+static bool texts_manager_started = false;
+static bool room_manager_started = false;
+static bool model_manager_started = false;
+static bool item_manager_started = false;
 static bool disposed = false;
 static volatile sig_atomic_t shutdown_requested = 0;
 
@@ -72,16 +80,24 @@ int main(void) {
     fuserights_init();
     walkways_init();
     texts_manager_init();
+    texts_manager_started = true;
     player_manager_init();
+    player_manager_started = true;
     model_manager_init();
+    model_manager_started = true;
     category_manager_init();
+    category_manager_started = true;
     room_manager_init();
+    room_manager_started = true;
     item_manager_init();
+    item_manager_started = true;
     catalogue_manager_init();
+    catalogue_manager_started = true;
     message_handler_init();
 
     room_manager_load_connected_rooms();
     hh_dispatch_initialise(1, 8, 1);
+    dispatch_started = true;
 
     server_settings rcon_settings, server_settings;
     strcpy(rcon_settings.ip, configuration_get_string("rcon.ip.address"));
@@ -138,20 +154,52 @@ void dispose_program() {
         runtime_threads_started = false;
     }
 
-    hh_dispatch_shutdown();
+    if (dispatch_started) {
+        hh_dispatch_shutdown();
+        dispatch_started = false;
+    }
 
-    player_manager_dispose();
-    catalogue_manager_dispose();
-    category_manager_dispose();
+    if (player_manager_started) {
+        player_manager_dispose();
+        player_manager_started = false;
+    }
+
+    if (catalogue_manager_started) {
+        catalogue_manager_dispose();
+        catalogue_manager_started = false;
+    }
+
+    if (category_manager_started) {
+        category_manager_dispose();
+        category_manager_started = false;
+    }
+
     configuration_dispose();
-    texts_manager_dispose();
-    room_manager_dispose();
-    model_manager_dispose();
-    item_manager_dispose();
 
-    if (sqlite3_close(global.DB) != SQLITE_OK) {
+    if (texts_manager_started) {
+        texts_manager_dispose();
+        texts_manager_started = false;
+    }
+
+    if (room_manager_started) {
+        room_manager_dispose();
+        room_manager_started = false;
+    }
+
+    if (model_manager_started) {
+        model_manager_dispose();
+        model_manager_started = false;
+    }
+
+    if (item_manager_started) {
+        item_manager_dispose();
+        item_manager_started = false;
+    }
+
+    if (global.DB != NULL && sqlite3_close(global.DB) != SQLITE_OK) {
         log_fatal("Could not close SQLite database: %s", sqlite3_errmsg(global.DB));
     }
+    global.DB = NULL;
 
     log_info("Have a nice day!");
 }
