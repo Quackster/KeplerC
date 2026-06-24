@@ -1,0 +1,67 @@
+name: Latest Release
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: write
+
+concurrency:
+  group: latest-release
+  cancel-in-progress: true
+
+jobs:
+  build-release:
+    name: Build and publish latest release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gcc libuv1-dev sqlite3 libsqlite3-dev libsodium-dev
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Package
+        run: |
+          mkdir -p dist/KeplerC-latest
+          cp build/Kepler dist/KeplerC-latest/
+          cp -r data dist/KeplerC-latest/
+          cp kepler.sql dist/KeplerC-latest/
+          tar -C dist -czf dist/KeplerC-latest-linux-x86_64.tar.gz KeplerC-latest
+
+      - name: Publish latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git tag -f latest "${GITHUB_SHA}"
+          git push origin refs/tags/latest --force
+
+          cat > release-notes.md <<EOF
+          Latest build from master.
+
+          Commit: ${GITHUB_SHA}
+          EOF
+
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest dist/KeplerC-latest-linux-x86_64.tar.gz --clobber
+            gh release edit latest \
+              --title "latest" \
+              --notes-file release-notes.md \
+              --latest
+          else
+            gh release create latest dist/KeplerC-latest-linux-x86_64.tar.gz \
+              --title "latest" \
+              --notes-file release-notes.md \
+              --latest
+          fi
