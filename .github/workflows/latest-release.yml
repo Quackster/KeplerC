@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-release:
-    name: Build and publish latest release
+  build-linux:
+    name: Build Linux release
     runs-on: ubuntu-latest
 
     steps:
@@ -24,7 +24,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y cmake gcc libuv1-dev sqlite3 libsqlite3-dev libsodium-dev
+          sudo apt-get install -y cmake gcc libuv1-dev sqlite3 libsqlite3-dev libsodium-dev zip
 
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
@@ -34,11 +34,96 @@ jobs:
 
       - name: Package
         run: |
-          mkdir -p dist/KeplerC-latest
-          cp build/Kepler dist/KeplerC-latest/
-          cp -r data dist/KeplerC-latest/
-          cp kepler.sql dist/KeplerC-latest/
-          tar -C dist -czf dist/KeplerC-latest-linux-x86_64.tar.gz KeplerC-latest
+          mkdir -p dist/KeplerC-latest-linux-x86_64
+          cp build/Kepler dist/KeplerC-latest-linux-x86_64/
+          cp -r data dist/KeplerC-latest-linux-x86_64/
+          cp kepler.sql dist/KeplerC-latest-linux-x86_64/
+          (cd dist && zip -r KeplerC-latest-linux-x86_64.zip KeplerC-latest-linux-x86_64)
+
+      - name: Upload Linux release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeplerC-latest-linux-x86_64
+          path: dist/KeplerC-latest-linux-x86_64.zip
+          if-no-files-found: error
+
+  build-windows:
+    name: Build Windows release
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-pkgconf
+            mingw-w64-ucrt-x86_64-libuv
+            mingw-w64-ucrt-x86_64-libsodium
+            mingw-w64-ucrt-x86_64-sqlite3
+
+      - name: Configure
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel
+
+      - name: Package
+        run: |
+          mkdir -p dist/KeplerC-latest-windows-x86_64
+          cp build/Kepler.exe dist/KeplerC-latest-windows-x86_64/
+          cp -r data dist/KeplerC-latest-windows-x86_64/
+          cp kepler.sql dist/KeplerC-latest-windows-x86_64/
+
+          for dll in \
+            /ucrt64/bin/libuv-*.dll \
+            /ucrt64/bin/libsodium-*.dll \
+            /ucrt64/bin/libsqlite3-*.dll \
+            /ucrt64/bin/libwinpthread-*.dll \
+            /ucrt64/bin/libgcc_s_seh-*.dll; do
+            if [ -e "$dll" ]; then
+              cp "$dll" dist/KeplerC-latest-windows-x86_64/
+            fi
+          done
+
+      - name: Create Windows zip
+        shell: pwsh
+        run: Compress-Archive -Path dist/KeplerC-latest-windows-x86_64 -DestinationPath dist/KeplerC-latest-windows-x86_64.zip
+
+      - name: Upload Windows release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KeplerC-latest-windows-x86_64
+          path: dist/KeplerC-latest-windows-x86_64.zip
+          if-no-files-found: error
+
+  publish-latest:
+    name: Publish latest release
+    runs-on: ubuntu-latest
+    needs:
+      - build-linux
+      - build-windows
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: Publish latest release
         env:
@@ -54,13 +139,13 @@ jobs:
           EOF
 
           if gh release view latest >/dev/null 2>&1; then
-            gh release upload latest dist/KeplerC-latest-linux-x86_64.tar.gz --clobber
+            gh release upload latest dist/KeplerC-latest-linux-x86_64.zip dist/KeplerC-latest-windows-x86_64.zip --clobber
             gh release edit latest \
               --title "latest" \
               --notes-file release-notes.md \
               --latest
           else
-            gh release create latest dist/KeplerC-latest-linux-x86_64.tar.gz \
+            gh release create latest dist/KeplerC-latest-linux-x86_64.zip dist/KeplerC-latest-windows-x86_64.zip \
               --title "latest" \
               --notes-file release-notes.md \
               --latest

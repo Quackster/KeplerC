@@ -10,6 +10,14 @@
 
 server global;
 
+static void get_local_time(const time_t *time_value, struct tm *time_info) {
+#ifdef _WIN32
+    localtime_s(time_info, time_value);
+#else
+    localtime_r(time_value, time_info);
+#endif
+}
+
 /**
  * Get the current time formatted, must be free'd at the end.
  *
@@ -19,7 +27,7 @@ char *get_time_formatted() {
     char buff[20];
     time_t now = time(NULL);
     struct tm time_info;
-    localtime_r(&now, &time_info);
+    get_local_time(&now, &time_info);
     strftime(buff, 20, "%Y-%m-%d %H:%M:%S", &time_info);
     return strdup(buff);
 }
@@ -33,7 +41,7 @@ char *get_short_time_formatted() {
     char buff[20];
     time_t now = time(NULL);
     struct tm time_info;
-    localtime_r(&now, &time_info);
+    get_local_time(&now, &time_info);
     strftime(buff, 20, "%m-%d-%Y", &time_info);
     return strdup(buff);
 }
@@ -48,7 +56,7 @@ char *get_time_formatted_custom(unsigned long time_seconds) {
     char buff[20];
     time_t now = (time_t) time_seconds;
     struct tm time_info;
-    localtime_r(&now, &time_info);
+    get_local_time(&now, &time_info);
     strftime(buff, 20, "%Y-%m-%d %H:%M:%S", &time_info);
     return strdup(buff);
 }
